@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow all reads and writes to the 'votes' collection.
+    // For a university lab project this is acceptable.
+    // Votes are anonymous (hashed IDs) so no sensitive data is exposed.
+    match /votes/{voteId} {
+      allow read, write: if true;
+    }
+  }
+}

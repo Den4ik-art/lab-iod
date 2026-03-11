@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Environment variables — never commit real credentials
+.env
+.env.local
+
+# Firebase local state
+.firebase/
+
+# Editor and OS
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Vite cache
+.vite/

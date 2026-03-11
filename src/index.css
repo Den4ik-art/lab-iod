@@ -1,0 +1,332 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,700&display=swap');
+
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #161616;
+  --bg-card: #1c1c1c;
+  --bg-card-hover: #242424;
+  --border-light: #2a2a2a;
+  --border-medium: #363636;
+  --text-primary: #f5f5f5;
+  --text-secondary: #a0a0a0;
+  --text-muted: #5a5a5a;
+  --accent: #FFD700;
+  --accent-dark: #e6c200;
+  --accent-glow: rgba(255, 215, 0, 0.25);
+  --red: #FF3B30;
+  --green: #30D158;
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6);
+  --shadow-accent: 0 0 24px rgba(255, 215, 0, 0.2);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ══════════ CARD ══════════ */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-medium);
+  box-shadow: var(--shadow-md);
+}
+
+/* ══════════ LEGO CARD ══════════ */
+.lego-card-selected {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px var(--accent), var(--shadow-accent) !important;
+}
+
+/* ══════════ BADGES ══════════ */
+.badge-rank {
+  background: var(--accent);
+  color: #000;
+  font-weight: 800;
+  font-size: 0.65rem;
+  letter-spacing: 0.02em;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ══════════ BUTTONS ══════════ */
+.btn-primary {
+  background: var(--text-primary);
+  color: #000;
+  border: none;
+  border-radius: 10px;
+  padding: 0.7rem 1.4rem;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 0.875rem;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-primary:hover {
+  background: #e5e5e5;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  background: var(--border-medium);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 10px;
+  padding: 0.7rem 1.4rem;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-card-hover);
+  border-color: #555;
+}
+
+.btn-accent {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 10px;
+  padding: 0.7rem 1.4rem;
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 0.875rem;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-accent:hover {
+  background: var(--accent-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(255, 215, 0, 0.4);
+}
+
+.btn-accent:disabled {
+  background: var(--border-medium);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ══════════ INPUT ══════════ */
+.input-field {
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  transition: border-color 0.2s ease;
+  outline: none;
+}
+
+.input-field::placeholder {
+  color: var(--text-muted);
+}
+
+.input-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.12);
+}
+
+/* ══════════ GLASS ══════════ */
+.glass-panel {
+  background: rgba(15, 15, 15, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* ══════════ MISC ══════════ */
+.divider {
+  height: 1px;
+  background: var(--border-light);
+  width: 100%;
+}
+
+.label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ══════════ TABLE ══════════ */
+.protocol-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.protocol-table th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-medium);
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.protocol-table td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-primary);
+}
+
+.protocol-table tr:hover td {
+  background: var(--bg-card-hover);
+}
+
+/* Rank colors */
+.rank-gold {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.rank-silver {
+  color: #9E9E9E;
+  font-weight: 700;
+}
+
+.rank-bronze {
+  color: #CD7F32;
+  font-weight: 700;
+}
+
+/* ══════════ PROGRESS ══════════ */
+.progress-bar {
+  height: 4px;
+  background: var(--border-light);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--text-primary);
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+
+.progress-fill.gold {
+  background: var(--accent);
+}
+
+.progress-fill.accent {
+  background: var(--accent);
+}
+
+/* ══════════ LEGO dot pattern background ══════════ */
+.dot-bg {
+  background-image: radial-gradient(circle, #2a2a2a 1.5px, transparent 1.5px);
+  background-size: 28px 28px;
+}
+
+/* ══════════ GLOW HEADING ══════════ */
+.glow-text {
+  text-shadow: 0 0 40px rgba(255, 215, 0, 0.35);
+}
+
+/* ══════════ COLOR STRIP ══════════ */
+.series-color-strip {
+  height: 3px;
+  width: 100%;
+  border-radius: 0 0 2px 2px;
+}
+
+/* ══════════ HOVER LIFT ══════════ */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
