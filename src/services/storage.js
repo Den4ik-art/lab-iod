@@ -1,6 +1,6 @@
 import {
   collection, addDoc, getDocs, query,
-  where, deleteDoc, onSnapshot,
+  where, deleteDoc, onSnapshot, orderBy,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -67,4 +67,45 @@ export function aggregateResults(votes) {
     });
   });
   return { totalVoters: votes.length, scores };
+}
+
+// ── Lab #2: Heuristic Rankings ────────────────────────────────────────
+
+export async function saveHeuristicRanking(data) {
+  const existing = await getDocs(
+    query(collection(db, 'heuristicRankings'), where('voterHash', '==', data.voterHash))
+  );
+  if (!existing.empty) throw new Error('ALREADY_RANKED');
+  const docRef = await addDoc(collection(db, 'heuristicRankings'), data);
+  return docRef.id;
+}
+
+export async function getAllHeuristicRankings() {
+  const snap = await getDocs(query(collection(db, 'heuristicRankings')));
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+export function subscribeToHeuristicRankings(callback) {
+  const q = query(collection(db, 'heuristicRankings'));
+  return onSnapshot(q,
+    snap => callback(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
+    err => console.error('heuristicRankings snapshot error:', err)
+  );
+}
+
+// ── Lab #2: Action History ────────────────────────────────────────────
+
+export async function logAction(data) {
+  await addDoc(collection(db, 'actionHistory'), {
+    ...data,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+export function subscribeToActionHistory(callback) {
+  const q = query(collection(db, 'actionHistory'), orderBy('timestamp', 'desc'));
+  return onSnapshot(q,
+    snap => callback(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
+    err => console.error('actionHistory snapshot error:', err)
+  );
 }

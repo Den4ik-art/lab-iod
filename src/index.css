@@ -330,3 +330,46 @@ html {
   transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
 }
+
+/* ══════════ LAB2 LAYOUT ══════════ */
+.lab2-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .lab2-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .lab2-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Heuristic row — color-coded status badge in table */
+.heuristic-active-row {
+  transition: background 0.3s ease, opacity 0.3s ease;
+}
+
+/* Step log monospaced entries */
+.step-log-entry {
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+/* Lab tab pill */
+.lab-tab-active-lab1 {
+  background: var(--accent);
+  color: #000;
+}
+
+.lab-tab-active-lab2 {
+  background: rgba(10, 132, 255, 0.9);
+  color: #fff;
+}
