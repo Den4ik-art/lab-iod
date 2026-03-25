@@ -1,12 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Lock, Unlock, Check, X, ShieldAlert, RefreshCw,
   ChevronDown, ChevronUp, Clock, Download, Users,
-  ArrowRight, Filter, Layers, ListChecks,
+  ArrowRight, Filter, Layers, ListChecks, Play, Dna,
+  Settings2, TrendingUp, Zap,
 } from 'lucide-react';
 import { LEGO_SERIES, ADMIN_SECRET } from '../data/legoSeries';
 import { HEURISTICS, aggregateHeuristicPopularity } from '../data/heuristics';
+import { runGeneticAlgorithm } from '../data/geneticAlgorithm';
 import {
   aggregateResults, subscribeToAllVotes,
   subscribeToHeuristicRankings, subscribeToActionHistory, logAction,
@@ -282,6 +284,16 @@ export default function Lab2Page() {
   const [steps, setSteps] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // ── Genetic Algorithm state ──────────────────────────────────────────
+  const [gaPopSize, setGaPopSize] = useState(50);
+  const [gaGenerations, setGaGenerations] = useState(100);
+  const [gaMutRate, setGaMutRate] = useState(0.1);
+  const [gaRunning, setGaRunning] = useState(false);
+  const [gaProgress, setGaProgress] = useState(null); // { generation, bestFitness, avgFitness }
+  const [gaHistory, setGaHistory] = useState([]);
+  const [gaResult, setGaResult] = useState(null); // { bestChromosome, bestFitness }
+  const gaHistoryRef = useRef([]);
+
   useEffect(() => {
     if (!unlocked) return;
     setLoading(true);
@@ -383,6 +395,47 @@ export default function Lab2Page() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  // ── Genetic Algorithm runner ─────────────────────────────────────────
+  const handleRunGA = useCallback(() => {
+    if (gaRunning || Object.keys(scores).length === 0) return;
+    setGaRunning(true);
+    setGaResult(null);
+    setGaHistory([]);
+    gaHistoryRef.current = [];
+
+    // Run asynchronously via setTimeout to avoid blocking the UI
+    setTimeout(() => {
+      const result = runGeneticAlgorithm({
+        allSeriesIds: LEGO_SERIES.map(s => s.id),
+        scores,
+        heuristicWeights: weights,
+        targetSize: 10,
+        populationSize: gaPopSize,
+        generations: gaGenerations,
+        mutationRate: gaMutRate,
+        eliteCount: 2,
+        onGeneration: (data) => {
+          gaHistoryRef.current = [...gaHistoryRef.current, data];
+        },
+      });
+
+      setGaHistory(gaHistoryRef.current);
+      setGaProgress(gaHistoryRef.current[gaHistoryRef.current.length - 1] ?? null);
+      setGaResult(result);
+      setGaRunning(false);
+
+      // Log to action history
+      logAction({
+        action: 'ga_run',
+        heuristicId: 'GA',
+        before: LEGO_SERIES.length,
+        after: result.bestChromosome.length,
+        voterHash: 'admin',
+        details: `pop=${gaPopSize} gen=${gaGenerations} mut=${gaMutRate} fitness=${result.bestFitness}`,
+      });
+    }, 50);
+  }, [gaRunning, scores, weights, gaPopSize, gaGenerations, gaMutRate]);
 
   if (!unlocked) return <LockScreen onUnlock={() => setUnlocked(true)} />;
 
@@ -670,8 +723,212 @@ export default function Lab2Page() {
         </div>
       </div>
 
+      {/* ══════ EVOLUTIONARY SOLVER (full width) ══════ */}
+      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 mt-6">
+        <div className="card overflow-hidden" style={{ border: '1px solid var(--border-medium)' }}>
+          {/* Header */}
+          <div className="px-5 py-4 flex items-center justify-between flex-wrap gap-3"
+            style={{ borderBottom: '1px solid var(--border-light)' }}>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: 'rgba(175,82,222,0.12)', border: '1px solid rgba(175,82,222,0.3)' }}>
+                <Dna size={16} style={{ color: '#AF52DE' }} />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                  Evolutionary Optimization
+                </h2>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Genetic Algorithm for rank aggregation (Requirement #9)
+                </p>
+              </div>
+            </div>
+            <button
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all"
+              style={{
+                background: gaRunning ? 'var(--bg-secondary)' : 'rgba(175,82,222,0.15)',
+                border: `1px solid ${gaRunning ? 'var(--border-light)' : 'rgba(175,82,222,0.35)'}`,
+                color: gaRunning ? 'var(--text-muted)' : '#AF52DE',
+                cursor: gaRunning ? 'not-allowed' : 'pointer',
+              }}
+              onClick={handleRunGA}
+              disabled={gaRunning || Object.keys(scores).length === 0}
+            >
+              {gaRunning ? (
+                <><RefreshCw size={13} className="animate-spin" /> Running...</>
+              ) : (
+                <><Play size={13} /> Run Evolution</>
+              )}
+            </button>
+          </div>
+
+          {/* Controls + Results grid */}
+          <div className="p-5" style={{ display: 'grid', gridTemplateColumns: gaResult ? '280px 1fr 1fr' : '280px 1fr', gap: '1.25rem', alignItems: 'start' }}>
+
+            {/* Parameters panel */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Settings2 size={13} style={{ color: 'var(--text-muted)' }} />
+                <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>Parameters</span>
+              </div>
+
+              {/* Population Size */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs" style={{ color: 'var(--text-secondary)' }}>Population Size</label>
+                  <span className="text-xs font-black" style={{ color: 'var(--text-primary)' }}>{gaPopSize}</span>
+                </div>
+                <input type="range" min="10" max="200" step="10" value={gaPopSize}
+                  onChange={e => setGaPopSize(Number(e.target.value))} disabled={gaRunning}
+                  style={{ width: '100%', accentColor: '#AF52DE' }} />
+              </div>
+
+              {/* Generations */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs" style={{ color: 'var(--text-secondary)' }}>Generations</label>
+                  <span className="text-xs font-black" style={{ color: 'var(--text-primary)' }}>{gaGenerations}</span>
+                </div>
+                <input type="range" min="10" max="500" step="10" value={gaGenerations}
+                  onChange={e => setGaGenerations(Number(e.target.value))} disabled={gaRunning}
+                  style={{ width: '100%', accentColor: '#AF52DE' }} />
+              </div>
+
+              {/* Mutation Rate */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs" style={{ color: 'var(--text-secondary)' }}>Mutation Rate</label>
+                  <span className="text-xs font-black" style={{ color: 'var(--text-primary)' }}>{Math.round(gaMutRate * 100)}%</span>
+                </div>
+                <input type="range" min="0" max="100" step="1" value={Math.round(gaMutRate * 100)}
+                  onChange={e => setGaMutRate(Number(e.target.value) / 100)} disabled={gaRunning}
+                  style={{ width: '100%', accentColor: '#AF52DE' }} />
+              </div>
+
+              {/* Stats */}
+              {gaResult && (
+                <div className="rounded-xl p-3 space-y-2"
+                  style={{ background: 'rgba(175,82,222,0.08)', border: '1px solid rgba(175,82,222,0.2)' }}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Best Fitness</span>
+                    <span className="text-xs font-black" style={{ color: '#AF52DE' }}>{gaResult.bestFitness}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Generations</span>
+                    <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{gaHistory.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Population</span>
+                    <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{gaPopSize}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Fitness chart */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp size={13} style={{ color: '#AF52DE' }} />
+                <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>Fitness Evolution</span>
+              </div>
+              {gaHistory.length > 0 ? (
+                <div className="rounded-xl p-3" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)' }}>
+                  {/* Simple bar chart of fitness over generations */}
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1px', height: '140px' }}>
+                    {(() => {
+                      // Sample at most 60 bars
+                      const step = Math.max(1, Math.floor(gaHistory.length / 60));
+                      const sampled = gaHistory.filter((_, i) => i % step === 0 || i === gaHistory.length - 1);
+                      const maxF = Math.max(...sampled.map(s => s.bestFitness), 1);
+                      const minF = Math.min(...sampled.map(s => s.bestFitness), 0);
+                      const range = maxF - minF || 1;
+                      return sampled.map((s, i) => {
+                        const pct = ((s.bestFitness - minF) / range) * 100;
+                        return (
+                          <div key={i} style={{
+                            flex: 1,
+                            height: `${Math.max(pct, 2)}%`,
+                            background: i === sampled.length - 1
+                              ? '#AF52DE'
+                              : 'rgba(175,82,222,0.35)',
+                            borderRadius: '2px 2px 0 0',
+                            transition: 'height 0.2s ease',
+                            minWidth: '2px',
+                          }}
+                            title={`Gen ${s.generation}: fitness=${s.bestFitness}`}
+                          />
+                        );
+                      });
+                    })()}
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Gen 1</span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Gen {gaHistory.length}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl p-8 text-center"
+                  style={{ background: 'var(--bg-secondary)', border: '1px dashed var(--border-medium)' }}>
+                  <Dna size={28} className="mx-auto mb-2 opacity-20" style={{ color: '#AF52DE' }} />
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Click "Run Evolution" to start the genetic algorithm.
+                    <br />The fitness progression will appear here.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* GA Final Core results */}
+            {gaResult && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap size={13} style={{ color: '#AF52DE' }} />
+                  <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>GA Final Core (Top 10)</span>
+                  <span className="text-xs font-black ml-auto px-2 py-0.5 rounded-full"
+                    style={{ background: 'rgba(175,82,222,0.12)', color: '#AF52DE', border: '1px solid rgba(175,82,222,0.3)' }}>
+                    n = {gaResult.bestChromosome.length}
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {gaResult.bestChromosome.map((id, idx) => {
+                    const series = LEGO_SERIES.find(s => s.id === id);
+                    const sc = scores[id];
+                    if (!series) return null;
+                    return (
+                      <motion.div key={id}
+                        initial={{ opacity: 0, x: 12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.04 }}
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2"
+                        style={{
+                          background: idx === 0 ? 'rgba(175,82,222,0.1)' : 'var(--bg-secondary)',
+                          border: `1px solid ${idx === 0 ? 'rgba(175,82,222,0.3)' : 'var(--border-light)'}`,
+                        }}
+                      >
+                        <span className="w-5 h-5 rounded text-xs font-black flex items-center justify-center flex-shrink-0"
+                          style={{ background: 'var(--border-light)', color: 'var(--text-muted)' }}>
+                          {idx + 1}
+                        </span>
+                        <div className="w-4 h-4 rounded flex-shrink-0" style={{ background: series.color }} />
+                        <span className="text-xs font-bold truncate" style={{ color: 'var(--text-primary)' }}>
+                          {series.name}
+                        </span>
+                        <span className="text-xs font-black ml-auto flex-shrink-0"
+                          style={{ color: idx === 0 ? '#AF52DE' : 'var(--text-muted)' }}>
+                          {sc?.total ?? 0} pts
+                        </span>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* ── Action History (full width bottom) ── */}
-      <div className="max-w-screen-xl mx-auto px-4 sm:px-6">
+      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 mt-4">
         <ActionHistory actions={actions} />
       </div>
     </div>
