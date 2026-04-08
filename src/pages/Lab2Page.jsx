@@ -723,7 +723,126 @@ export default function Lab2Page() {
         </div>
       </div>
 
-      
+      {/* Матриця "Об'єкти vs Евристики" */}
+      {activeHeuristics.length > 0 && (
+        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 mt-6">
+          <div className="card overflow-hidden" style={{ border: '1px solid var(--border-medium)' }}>
+            <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border-light)' }}>
+              <div className="flex items-center gap-2">
+                <Layers size={14} style={{ color: 'rgba(10,132,255,0.8)' }} />
+                <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                  Матриця «Об'єкти vs Евристики»
+                </h2>
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold ml-auto"
+                  style={{ background: 'rgba(10,132,255,0.1)', color: 'rgba(10,132,255,0.85)' }}>
+                  {activeHeuristics.length} активних
+                </span>
+              </div>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                ✓ — об'єкт відповідає евристиці (підлягає відсіюванню). Евристики відсортовані за пріоритетом експертів.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="protocol-table" style={{ fontSize: '0.75rem' }}>
+                <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 1 }}>
+                  <tr>
+                    <th style={{ width: 28 }}>#</th>
+                    <th>Набір LEGO</th>
+                    <th style={{ textAlign: 'center', fontSize: '0.65rem' }}>Бали</th>
+                    {orderedHeuristics.filter(h => activeHeuristics.includes(h.id)).map(h => (
+                      <th key={h.id} style={{
+                        textAlign: 'center', fontSize: '0.65rem', minWidth: 44,
+                        background: h.color, borderLeft: `2px solid ${h.borderColor}`,
+                      }}>
+                        <div style={{ fontWeight: 900 }}>{h.id}</div>
+                        <div style={{ fontWeight: 400, color: 'var(--text-muted)', lineHeight: 1.2, marginTop: 2 }}>
+                          {h.description.length > 25 ? h.description.slice(0, 25) + '…' : h.description}
+                        </div>
+                      </th>
+                    ))}
+                    <th style={{ textAlign: 'center', fontSize: '0.65rem', minWidth: 80 }}>Результат</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {LEGO_SERIES.map((series, idx) => {
+                    const sc = scores[series.id];
+                    const isRemoved = !finalCoreIds.includes(series.id);
+                    const activeOrdered = orderedHeuristics.filter(h => activeHeuristics.includes(h.id));
+
+                    // для кожної евристики перевіряємо, чи вона б відфільтрувала цей об'єкт
+                    // (на основі повного scores, не поетапного — щоб показати повну картину)
+                    const matchMap = {};
+                    activeOrdered.forEach(h => {
+                      const allScored = {};
+                      LEGO_SERIES.forEach(s => { if (scores[s.id]) allScored[s.id] = scores[s.id]; });
+                      const matched = h.filter(allScored);
+                      matchMap[h.id] = matched.includes(series.id);
+                    });
+
+                    const matchCount = Object.values(matchMap).filter(Boolean).length;
+
+                    return (
+                      <tr key={series.id} style={{
+                        background: isRemoved ? 'rgba(255,59,48,0.05)' : 'transparent',
+                        opacity: isRemoved ? 0.7 : 1,
+                      }}>
+                        <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 rounded flex-shrink-0" style={{ background: series.color }} />
+                            <span style={{ color: isRemoved ? 'var(--text-muted)' : 'var(--text-primary)', fontWeight: 600 }}>
+                              {series.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          {sc?.total ?? 0}
+                        </td>
+                        {activeOrdered.map(h => (
+                          <td key={h.id} style={{
+                            textAlign: 'center',
+                            borderLeft: `2px solid ${h.borderColor}`,
+                            background: matchMap[h.id] ? h.color : 'transparent',
+                          }}>
+                            {matchMap[h.id] ? (
+                              <span style={{ color: h.borderColor, fontWeight: 900, fontSize: '0.85rem' }}>✓</span>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', opacity: 0.3 }}>—</span>
+                            )}
+                          </td>
+                        ))}
+                        <td style={{ textAlign: 'center' }}>
+                          {isRemoved ? (
+                            <span className="px-2 py-0.5 rounded text-xs font-bold"
+                              style={{ background: 'rgba(255,59,48,0.12)', color: '#FF3B30', border: '1px solid rgba(255,59,48,0.3)' }}>
+                              Відсіяти
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-xs font-bold"
+                              style={{ background: 'rgba(48,209,88,0.1)', color: '#30D158', border: '1px solid rgba(48,209,88,0.25)' }}>
+                              Залишається
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: '1px solid var(--border-light)', background: 'var(--bg-secondary)' }}>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                Всього: {LEGO_SERIES.length} об'єктів · Відсіяно: {LEGO_SERIES.length - finalCoreIds.length} · Залишилось: {finalCoreIds.length}
+              </span>
+              <span className="text-xs font-bold" style={{ color: targetReached ? '#30D158' : 'var(--accent)' }}>
+                {targetReached ? '✓ Ціль досягнута (≤ 10)' : `Ще потрібно видалити ${finalCoreIds.length - 10}`}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 mt-6">
         <div className="card overflow-hidden" style={{ border: '1px solid var(--border-medium)' }}>
           {/* Header */}
