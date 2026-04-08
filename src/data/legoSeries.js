@@ -1,10 +1,8 @@
-// ── Admin credentials ──────────────────────────────────────────────────
-// KEEP THIS SECRET. Only share with the lab professor/administrator.
 export const ADMIN_SECRET = '21062026';
 
 export const MAX_SELECTIONS = 3;
 
-// ── 20 LEGO Series ─────────────────────────────────────────────────────
+// LEGO Series
 // imageURL: official theme banner images scraped from lego.com/en-us/themes
 // color: brand fallback if CDN is blocked
 export const LEGO_SERIES = [

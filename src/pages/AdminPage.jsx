@@ -20,7 +20,7 @@ const RANK_LABELS = { 1: '🥇 1st', 2: '🥈 2nd', 3: '🥉 3rd' };
 // We'll use text labels instead of emoji in the db
 const RANK_TEXT = { 1: '1st', 2: '2nd', 3: '3rd' };
 
-// ─── Admin Lock Screen ────────────────────────────────────────────────
+// Admin Lock Screen
 function LockScreen({ onUnlock }) {
     const [key, setKey] = useState('');
     const [error, setError] = useState('');
@@ -83,7 +83,7 @@ function LockScreen({ onUnlock }) {
     );
 }
 
-// ─── Single vote row (expandable) ─────────────────────────────────────
+// Single vote row (expandable)
 function VoteRow({ vote, index }) {
     const [open, setOpen] = useState(false);
     const sorted = [...vote.rankings].sort((a, b) => a.rank - b.rank);
@@ -174,7 +174,7 @@ function VoteRow({ vote, index }) {
     );
 }
 
-// ─── Main Admin Page ───────────────────────────────────────────────────
+// Main Admin Page
 export default function AdminPage() {
     const [unlocked, setUnlocked] = useState(false);
     const [data, setData] = useState(null);
@@ -443,7 +443,7 @@ export default function AdminPage() {
                     </motion.div>
                 )}
 
-                {/* ── Individual Votes tab ── */}
+                {/* Individual Votes tab */}
                 {activeTab === 'votes' && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                         <div className="flex items-center gap-3 mb-5">

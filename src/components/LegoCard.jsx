@@ -30,7 +30,7 @@ export default function LegoCard({ series, index }) {
                 background: 'var(--bg-card)',
             }}
         >
-            {/* ── Banner image (16:9-ish, landscape) ── */}
+            {/* Banner image (16:9-ish, landscape) */}
             <div
                 className="w-full overflow-hidden relative"
                 style={{ aspectRatio: '16/9', background: series.color }}
@@ -73,7 +73,7 @@ export default function LegoCard({ series, index }) {
                 )}
             </div>
 
-            {/* ── Card footer ── */}
+            {/* Card footer */}
             <div className="flex items-center justify-between px-3 py-2.5">
                 <div className="min-w-0">
                     <p className="font-bold text-sm leading-tight truncate" style={{ color: 'var(--text-primary)' }}>

@@ -1,6 +1,5 @@
-// ── Lab #2 Heuristics ─────────────────────────────────────────────────
-// Each heuristic: { id, label, description, color, filter(scores) → [seriesId, ...] }
-// filter() returns the IDs of series that MATCH the condition (i.e. to be removed)
+// Евристики Лаб #2
+// filter(scores) повертає ID серій, що відповідають умові (для видалення)
 
 export const HEURISTICS = [
   {
@@ -66,40 +65,42 @@ export const HEURISTICS = [
   {
     id: 'E6',
     label: 'E6',
-    description: 'Has zero 1st-place votes',
+    description: 'Never appeared in TOP-3 (zero 1st/2nd/3rd votes)',
     color: 'rgba(255, 59, 48, 0.11)',
     borderColor: 'rgba(255, 59, 48, 0.4)',
     filter(scores) {
       return Object.entries(scores)
-        .filter(([, s]) => s.rank1 === 0)
+        .filter(([, s]) => (s.rank1 + s.rank2 + s.rank3) === 0)
         .map(([id]) => id);
     },
   },
   {
     id: 'E7',
     label: 'E7',
-    description: 'Total points score is less than 4',
+    description: 'Has the lowest total score among all objects',
     color: 'rgba(100, 100, 100, 0.15)',
     borderColor: 'rgba(120, 120, 120, 0.45)',
     filter(scores) {
-      return Object.entries(scores)
-        .filter(([, s]) => s.total < 4)
+      const entries = Object.entries(scores);
+      if (entries.length === 0) return [];
+      const minTotal = Math.min(...entries.map(([, s]) => s.total));
+      return entries
+        .filter(([, s]) => s.total === minTotal)
         .map(([id]) => id);
     },
   },
 ];
 
-// Aggregate expert rankings into a popularity weight map
-// ranking: [E3, E1, E7, ...] — index 0 = most important (weight = 7), index 6 = least (weight = 1)
+// Агрегація рейтингів евристик від експертів
 export function aggregateHeuristicPopularity(rankings) {
   const weights = {};
-  const counts = {}; // how many experts placed each heuristic at position #1
+  const counts = {};
   HEURISTICS.forEach(h => { weights[h.id] = 0; counts[h.id] = 0; });
 
   rankings.forEach(({ ranking }) => {
     if (!Array.isArray(ranking)) return;
     ranking.forEach((hId, idx) => {
-      const w = HEURISTICS.length - idx; // 7 for pos-0, 1 for pos-6
+      const w = HEURISTICS.length - idx;
       weights[hId] = (weights[hId] ?? 0) + w;
       if (idx === 0) counts[hId] = (counts[hId] ?? 0) + 1;
     });

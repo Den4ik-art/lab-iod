@@ -8,13 +8,13 @@ import {
 } from 'lucide-react';
 import { LEGO_SERIES, ADMIN_SECRET } from '../data/legoSeries';
 import { HEURISTICS, aggregateHeuristicPopularity } from '../data/heuristics';
-import { runGeneticAlgorithm } from '../data/geneticAlgorithm';
+import { runGeneticAlgorithm, onePointOrderCrossover } from '../data/geneticAlgorithm';
 import {
   aggregateResults, subscribeToAllVotes,
   subscribeToHeuristicRankings, subscribeToActionHistory, logAction,
 } from '../services/storage';
 
-// ── Lock screen (identical style to AdminPage) ────────────────────────
+// Lock screen (identical style to AdminPage)
 function LockScreen({ onUnlock }) {
   const [key, setKey] = useState('');
   const [error, setError] = useState('');
@@ -64,7 +64,7 @@ function LockScreen({ onUnlock }) {
   );
 }
 
-// ── Popularity table (left column) ───────────────────────────────────
+// Popularity table (left column)
 function PopularityTable({ rankings }) {
   const { weights, counts } = aggregateHeuristicPopularity(rankings);
   const maxWeight = Math.max(...Object.values(weights), 1);
@@ -118,7 +118,7 @@ function PopularityTable({ rankings }) {
   );
 }
 
-// ── Heuristic toggle row (center column) ─────────────────────────────
+// Heuristic toggle row (center column)
 function HeuristicRow({ heuristic, active, removedCount, onApply, onRevert, disabled }) {
   return (
     <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all"
@@ -170,7 +170,7 @@ function HeuristicRow({ heuristic, active, removedCount, onApply, onRevert, disa
   );
 }
 
-// ── Step log ─────────────────────────────────────────────────────────
+// Step log
 function StepLog({ steps }) {
   return (
     <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
@@ -197,7 +197,7 @@ function StepLog({ steps }) {
   );
 }
 
-// ── Action history drawer ─────────────────────────────────────────────
+// Action history drawer
 function ActionHistory({ actions }) {
   const [open, setOpen] = useState(false);
   return (
@@ -274,33 +274,36 @@ function ActionHistory({ actions }) {
   );
 }
 
-// ── Main Lab2Page ─────────────────────────────────────────────────────
+// Main Lab2Page
 export default function Lab2Page() {
   const [unlocked, setUnlocked] = useState(false);
   const [scores, setScores] = useState({});
+  const [votes, setVotes] = useState([]);
   const [rankings, setRankings] = useState([]);
   const [actions, setActions] = useState([]);
   const [activeHeuristics, setActiveHeuristics] = useState([]);
   const [steps, setSteps] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ── Genetic Algorithm state ──────────────────────────────────────────
+  // Genetic Algorithm state
   const [gaPopSize, setGaPopSize] = useState(50);
   const [gaGenerations, setGaGenerations] = useState(100);
   const [gaMutRate, setGaMutRate] = useState(0.1);
   const [gaRunning, setGaRunning] = useState(false);
-  const [gaProgress, setGaProgress] = useState(null); // { generation, bestFitness, avgFitness }
-  const [gaHistory, setGaHistory] = useState([]);
-  const [gaResult, setGaResult] = useState(null); // { bestChromosome, bestFitness }
-  const gaHistoryRef = useRef([]);
+  const [gaResult, setGaResult] = useState(null); // { additive, minmax }
+  const [gaHistoryAdd, setGaHistoryAdd] = useState([]);
+  const [gaHistoryMM, setGaHistoryMM] = useState([]);
+  const gaHistoryAddRef = useRef([]);
+  const gaHistoryMMRef = useRef([]);
 
   useEffect(() => {
     if (!unlocked) return;
     setLoading(true);
 
-    const unsub1 = subscribeToAllVotes((votes) => {
-      const { scores: s } = aggregateResults(votes);
+    const unsub1 = subscribeToAllVotes((rawVotes) => {
+      const { scores: s } = aggregateResults(rawVotes);
       setScores(s);
+      setVotes(rawVotes);
       setLoading(false);
     });
     const unsub2 = subscribeToHeuristicRankings(setRankings);
@@ -308,11 +311,11 @@ export default function Lab2Page() {
     return () => { unsub1(); unsub2(); unsub3(); };
   }, [unlocked]);
 
-  // ── Compute ordered heuristics by expert popularity ─────────────────
+  // Compute ordered heuristics by expert popularity
   const { weights } = aggregateHeuristicPopularity(rankings);
   const orderedHeuristics = [...HEURISTICS].sort((a, b) => (weights[b.id] ?? 0) - (weights[a.id] ?? 0));
 
-  // ── Compute which series are removed by each active heuristic ────────
+  // Compute which series are removed by each active heuristic
   // We apply heuristics in order (already activated). A series is removed
   // if it matches ANY active heuristic from the original full list.
   const allSeriesIds = LEGO_SERIES.map(s => s.id);
@@ -357,7 +360,7 @@ export default function Lab2Page() {
     });
   });
 
-  // ── Apply / Revert handlers ──────────────────────────────────────────
+  // Apply / Revert handlers
   const handleApply = async (hId) => {
     const before = finalCoreIds.length;
     // Simulate applying this heuristic to get after count
@@ -396,46 +399,43 @@ export default function Lab2Page() {
     URL.revokeObjectURL(url);
   };
 
-  // ── Genetic Algorithm runner ─────────────────────────────────────────
+  // Genetic Algorithm runner
   const handleRunGA = useCallback(() => {
-    if (gaRunning || Object.keys(scores).length === 0) return;
+    if (gaRunning || finalCoreIds.length === 0 || votes.length === 0) return;
     setGaRunning(true);
     setGaResult(null);
-    setGaHistory([]);
-    gaHistoryRef.current = [];
+    setGaHistoryAdd([]);
+    setGaHistoryMM([]);
+    gaHistoryAddRef.current = [];
+    gaHistoryMMRef.current = [];
 
-    // Run asynchronously via setTimeout to avoid blocking the UI
     setTimeout(() => {
       const result = runGeneticAlgorithm({
-        allSeriesIds: LEGO_SERIES.map(s => s.id),
-        scores,
-        heuristicWeights: weights,
-        targetSize: 10,
+        itemIds: finalCoreIds,
+        votes,
         populationSize: gaPopSize,
         generations: gaGenerations,
         mutationRate: gaMutRate,
         eliteCount: 2,
-        onGeneration: (data) => {
-          gaHistoryRef.current = [...gaHistoryRef.current, data];
-        },
+        onGenerationAdditive: (data) => { gaHistoryAddRef.current = [...gaHistoryAddRef.current, data]; },
+        onGenerationMinMax: (data) => { gaHistoryMMRef.current = [...gaHistoryMMRef.current, data]; },
       });
 
-      setGaHistory(gaHistoryRef.current);
-      setGaProgress(gaHistoryRef.current[gaHistoryRef.current.length - 1] ?? null);
+      setGaHistoryAdd(gaHistoryAddRef.current);
+      setGaHistoryMM(gaHistoryMMRef.current);
       setGaResult(result);
       setGaRunning(false);
 
-      // Log to action history
       logAction({
         action: 'ga_run',
         heuristicId: 'GA',
-        before: LEGO_SERIES.length,
-        after: result.bestChromosome.length,
+        before: finalCoreIds.length,
+        after: result.additive.bestChromosome.length,
         voterHash: 'admin',
-        details: `pop=${gaPopSize} gen=${gaGenerations} mut=${gaMutRate} fitness=${result.bestFitness}`,
+        details: `pop=${gaPopSize} gen=${gaGenerations} mut=${gaMutRate} add=${result.additive.bestFitness} mm=${result.minmax.bestFitness}`,
       });
     }, 50);
-  }, [gaRunning, scores, weights, gaPopSize, gaGenerations, gaMutRate]);
+  }, [gaRunning, finalCoreIds, votes, gaPopSize, gaGenerations, gaMutRate]);
 
   if (!unlocked) return <LockScreen onUnlock={() => setUnlocked(true)} />;
 
@@ -443,7 +443,7 @@ export default function Lab2Page() {
 
   return (
     <div className="min-h-screen pb-12" style={{ background: 'var(--bg-primary)' }}>
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="glass-panel sticky top-0 z-30">
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div>
@@ -478,10 +478,10 @@ export default function Lab2Page() {
         </div>
       </div>
 
-      {/* ── 3-column layout ── */}
+      {/* 3-column layout */}
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6" style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr 1fr', gap: '1.25rem', alignItems: 'start' }}>
 
-        {/* ══════ LEFT — Heuristic Popularity ══════ */}
+        
         <div className="space-y-4">
           <div className="card p-4" style={{ border: '1px solid var(--border-medium)' }}>
             <div className="flex items-center gap-2 mb-4">
@@ -518,7 +518,7 @@ export default function Lab2Page() {
           </div>
         </div>
 
-        {/* ══════ CENTER — Controls + Data Table ══════ */}
+        
         <div className="space-y-4">
           {/* Heuristic toggles */}
           <div className="card p-4" style={{ border: '1px solid var(--border-medium)' }}>
@@ -643,7 +643,7 @@ export default function Lab2Page() {
           </div>
         </div>
 
-        {/* ══════ RIGHT — Final Core ══════ */}
+        
         <div className="space-y-4">
           <div className="card p-4 sticky top-20" style={{ border: '1px solid var(--border-medium)' }}>
             <div className="flex items-center gap-2 mb-1">
@@ -723,7 +723,7 @@ export default function Lab2Page() {
         </div>
       </div>
 
-      {/* ══════ EVOLUTIONARY SOLVER (full width) ══════ */}
+      
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 mt-6">
         <div className="card overflow-hidden" style={{ border: '1px solid var(--border-medium)' }}>
           {/* Header */}
@@ -736,10 +736,10 @@ export default function Lab2Page() {
               </div>
               <div>
                 <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                  Evolutionary Optimization
+                  Evolutionary Ranking (Permutation GA)
                 </h2>
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Genetic Algorithm for rank aggregation (Requirement #9)
+                  Additive & MinMax criteria · 1-Point Order Crossover · {finalCoreIds.length} items to rank
                 </p>
               </div>
             </div>
@@ -752,7 +752,7 @@ export default function Lab2Page() {
                 cursor: gaRunning ? 'not-allowed' : 'pointer',
               }}
               onClick={handleRunGA}
-              disabled={gaRunning || Object.keys(scores).length === 0}
+              disabled={gaRunning || finalCoreIds.length === 0 || votes.length === 0}
             >
               {gaRunning ? (
                 <><RefreshCw size={13} className="animate-spin" /> Running...</>
@@ -763,7 +763,7 @@ export default function Lab2Page() {
           </div>
 
           {/* Controls + Results grid */}
-          <div className="p-5" style={{ display: 'grid', gridTemplateColumns: gaResult ? '280px 1fr 1fr' : '280px 1fr', gap: '1.25rem', alignItems: 'start' }}>
+          <div className="p-5" style={{ display: 'grid', gridTemplateColumns: gaResult ? '260px 1fr 1fr' : '260px 1fr', gap: '1.25rem', alignItems: 'start' }}>
 
             {/* Parameters panel */}
             <div className="space-y-4">
@@ -772,7 +772,6 @@ export default function Lab2Page() {
                 <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>Parameters</span>
               </div>
 
-              {/* Population Size */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs" style={{ color: 'var(--text-secondary)' }}>Population Size</label>
@@ -783,7 +782,6 @@ export default function Lab2Page() {
                   style={{ width: '100%', accentColor: '#AF52DE' }} />
               </div>
 
-              {/* Generations */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs" style={{ color: 'var(--text-secondary)' }}>Generations</label>
@@ -794,7 +792,6 @@ export default function Lab2Page() {
                   style={{ width: '100%', accentColor: '#AF52DE' }} />
               </div>
 
-              {/* Mutation Rate */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs" style={{ color: 'var(--text-secondary)' }}>Mutation Rate</label>
@@ -805,121 +802,147 @@ export default function Lab2Page() {
                   style={{ width: '100%', accentColor: '#AF52DE' }} />
               </div>
 
-              {/* Stats */}
               {gaResult && (
                 <div className="rounded-xl p-3 space-y-2"
                   style={{ background: 'rgba(175,82,222,0.08)', border: '1px solid rgba(175,82,222,0.2)' }}>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Best Fitness</span>
-                    <span className="text-xs font-black" style={{ color: '#AF52DE' }}>{gaResult.bestFitness}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Additive fitness</span>
+                    <span className="text-xs font-black" style={{ color: '#AF52DE' }}>{gaResult.additive.bestFitness}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>MinMax fitness</span>
+                    <span className="text-xs font-black" style={{ color: '#30D158' }}>{gaResult.minmax.bestFitness}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Generations</span>
-                    <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{gaHistory.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Population</span>
-                    <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{gaPopSize}</span>
+                    <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{gaHistoryAdd.length}</span>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Fitness chart */}
+            {/* ADDITIVE column */}
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <TrendingUp size={13} style={{ color: '#AF52DE' }} />
-                <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>Fitness Evolution</span>
+                <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>Additive Criterion</span>
+                <span className="text-xs ml-1" style={{ color: 'var(--text-muted)' }}>min Σ|dist|</span>
               </div>
-              {gaHistory.length > 0 ? (
+              {gaHistoryAdd.length > 0 ? (
                 <div className="rounded-xl p-3" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)' }}>
-                  {/* Simple bar chart of fitness over generations */}
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1px', height: '140px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1px', height: '120px' }}>
                     {(() => {
-                      // Sample at most 60 bars
-                      const step = Math.max(1, Math.floor(gaHistory.length / 60));
-                      const sampled = gaHistory.filter((_, i) => i % step === 0 || i === gaHistory.length - 1);
+                      const step = Math.max(1, Math.floor(gaHistoryAdd.length / 60));
+                      const sampled = gaHistoryAdd.filter((_, i) => i % step === 0 || i === gaHistoryAdd.length - 1);
                       const maxF = Math.max(...sampled.map(s => s.bestFitness), 1);
                       const minF = Math.min(...sampled.map(s => s.bestFitness), 0);
                       const range = maxF - minF || 1;
-                      return sampled.map((s, i) => {
-                        const pct = ((s.bestFitness - minF) / range) * 100;
-                        return (
-                          <div key={i} style={{
-                            flex: 1,
-                            height: `${Math.max(pct, 2)}%`,
-                            background: i === sampled.length - 1
-                              ? '#AF52DE'
-                              : 'rgba(175,82,222,0.35)',
-                            borderRadius: '2px 2px 0 0',
-                            transition: 'height 0.2s ease',
-                            minWidth: '2px',
-                          }}
-                            title={`Gen ${s.generation}: fitness=${s.bestFitness}`}
-                          />
-                        );
-                      });
+                      return sampled.map((s, i) => (
+                        <div key={i} style={{ flex: 1, height: `${Math.max(((s.bestFitness - minF) / range) * 100, 2)}%`,
+                          background: i === sampled.length - 1 ? '#AF52DE' : 'rgba(175,82,222,0.35)',
+                          borderRadius: '2px 2px 0 0', minWidth: '2px' }}
+                          title={`Gen ${s.generation}: fitness=${s.bestFitness}`} />
+                      ));
                     })()}
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Gen 1</span>
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Gen {gaHistory.length}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Gen {gaHistoryAdd.length}</span>
                   </div>
                 </div>
               ) : (
-                <div className="rounded-xl p-8 text-center"
+                <div className="rounded-xl p-6 text-center"
                   style={{ background: 'var(--bg-secondary)', border: '1px dashed var(--border-medium)' }}>
-                  <Dna size={28} className="mx-auto mb-2 opacity-20" style={{ color: '#AF52DE' }} />
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    Click "Run Evolution" to start the genetic algorithm.
-                    <br />The fitness progression will appear here.
-                  </p>
+                  <Dna size={24} className="mx-auto mb-2 opacity-20" style={{ color: '#AF52DE' }} />
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Run Evolution to see Additive fitness.</p>
+                </div>
+              )}
+              {gaResult && (
+                <div className="mt-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Zap size={13} style={{ color: '#AF52DE' }} />
+                    <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>Best Ranking (Additive)</span>
+                  </div>
+                  <div className="space-y-1">
+                    {gaResult.additive.bestChromosome.map((id, idx) => {
+                      const series = LEGO_SERIES.find(s => s.id === id);
+                      if (!series) return null;
+                      return (
+                        <motion.div key={id} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.04 }}
+                          className="flex items-center gap-2 rounded-lg px-3 py-1.5"
+                          style={{ background: idx === 0 ? 'rgba(175,82,222,0.1)' : 'var(--bg-secondary)',
+                            border: `1px solid ${idx === 0 ? 'rgba(175,82,222,0.3)' : 'var(--border-light)'}` }}>
+                          <span className="w-5 h-5 rounded text-xs font-black flex items-center justify-center"
+                            style={{ background: 'var(--border-light)', color: 'var(--text-muted)' }}>{idx + 1}</span>
+                          <div className="w-4 h-4 rounded" style={{ background: series.color }} />
+                          <span className="text-xs font-bold truncate" style={{ color: 'var(--text-primary)' }}>{series.name}</span>
+                          <span className="text-xs font-black ml-auto" style={{ color: idx === 0 ? '#AF52DE' : 'var(--text-muted)' }}>
+                            {scores[id]?.total ?? 0} pts</span>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* GA Final Core results */}
+            {/* MINMAX column */}
             {gaResult && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <Zap size={13} style={{ color: '#AF52DE' }} />
-                  <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>GA Final Core (Top 10)</span>
-                  <span className="text-xs font-black ml-auto px-2 py-0.5 rounded-full"
-                    style={{ background: 'rgba(175,82,222,0.12)', color: '#AF52DE', border: '1px solid rgba(175,82,222,0.3)' }}>
-                    n = {gaResult.bestChromosome.length}
-                  </span>
+                  <TrendingUp size={13} style={{ color: '#30D158' }} />
+                  <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>MinMax Criterion</span>
+                  <span className="text-xs ml-1" style={{ color: 'var(--text-muted)' }}>{'min max|dist|'}</span>
                 </div>
-                <div className="space-y-1.5">
-                  {gaResult.bestChromosome.map((id, idx) => {
-                    const series = LEGO_SERIES.find(s => s.id === id);
-                    const sc = scores[id];
-                    if (!series) return null;
-                    return (
-                      <motion.div key={id}
-                        initial={{ opacity: 0, x: 12 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.04 }}
-                        className="flex items-center gap-2.5 rounded-lg px-3 py-2"
-                        style={{
-                          background: idx === 0 ? 'rgba(175,82,222,0.1)' : 'var(--bg-secondary)',
-                          border: `1px solid ${idx === 0 ? 'rgba(175,82,222,0.3)' : 'var(--border-light)'}`,
-                        }}
-                      >
-                        <span className="w-5 h-5 rounded text-xs font-black flex items-center justify-center flex-shrink-0"
-                          style={{ background: 'var(--border-light)', color: 'var(--text-muted)' }}>
-                          {idx + 1}
-                        </span>
-                        <div className="w-4 h-4 rounded flex-shrink-0" style={{ background: series.color }} />
-                        <span className="text-xs font-bold truncate" style={{ color: 'var(--text-primary)' }}>
-                          {series.name}
-                        </span>
-                        <span className="text-xs font-black ml-auto flex-shrink-0"
-                          style={{ color: idx === 0 ? '#AF52DE' : 'var(--text-muted)' }}>
-                          {sc?.total ?? 0} pts
-                        </span>
-                      </motion.div>
-                    );
-                  })}
+                {gaHistoryMM.length > 0 && (
+                  <div className="rounded-xl p-3" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1px', height: '120px' }}>
+                      {(() => {
+                        const step = Math.max(1, Math.floor(gaHistoryMM.length / 60));
+                        const sampled = gaHistoryMM.filter((_, i) => i % step === 0 || i === gaHistoryMM.length - 1);
+                        const maxF = Math.max(...sampled.map(s => s.bestFitness), 1);
+                        const minF = Math.min(...sampled.map(s => s.bestFitness), 0);
+                        const range = maxF - minF || 1;
+                        return sampled.map((s, i) => (
+                          <div key={i} style={{ flex: 1, height: `${Math.max(((s.bestFitness - minF) / range) * 100, 2)}%`,
+                            background: i === sampled.length - 1 ? '#30D158' : 'rgba(48,209,88,0.35)',
+                            borderRadius: '2px 2px 0 0', minWidth: '2px' }}
+                            title={`Gen ${s.generation}: fitness=${s.bestFitness}`} />
+                        ));
+                      })()}
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Gen 1</span>
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Gen {gaHistoryMM.length}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="mt-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Zap size={13} style={{ color: '#30D158' }} />
+                    <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>Best Ranking (MinMax)</span>
+                  </div>
+                  <div className="space-y-1">
+                    {gaResult.minmax.bestChromosome.map((id, idx) => {
+                      const series = LEGO_SERIES.find(s => s.id === id);
+                      if (!series) return null;
+                      return (
+                        <motion.div key={id} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.04 }}
+                          className="flex items-center gap-2 rounded-lg px-3 py-1.5"
+                          style={{ background: idx === 0 ? 'rgba(48,209,88,0.1)' : 'var(--bg-secondary)',
+                            border: `1px solid ${idx === 0 ? 'rgba(48,209,88,0.3)' : 'var(--border-light)'}` }}>
+                          <span className="w-5 h-5 rounded text-xs font-black flex items-center justify-center"
+                            style={{ background: 'var(--border-light)', color: 'var(--text-muted)' }}>{idx + 1}</span>
+                          <div className="w-4 h-4 rounded" style={{ background: series.color }} />
+                          <span className="text-xs font-bold truncate" style={{ color: 'var(--text-primary)' }}>{series.name}</span>
+                          <span className="text-xs font-black ml-auto" style={{ color: idx === 0 ? '#30D158' : 'var(--text-muted)' }}>
+                            {scores[id]?.total ?? 0} pts</span>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
@@ -927,7 +950,39 @@ export default function Lab2Page() {
         </div>
       </div>
 
-      {/* ── Action History (full width bottom) ── */}
+      
+      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 mt-4">
+        <div className="card p-5" style={{ border: '1px solid var(--border-medium)' }}>
+          <div className="flex items-center gap-2 mb-4">
+            <Dna size={14} style={{ color: '#AF52DE' }} />
+            <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Crossover Operator Documentation</h2>
+          </div>
+          <div className="rounded-xl p-4" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-light)' }}>
+            <p className="text-xs font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+              1-Point Order Crossover (OX1)
+            </p>
+            <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>
+              For permutation-based chromosomes, standard crossover would cause duplicates.
+              The order crossover preserves a prefix from Parent 1 and fills remaining positions
+              with alleles from Parent 2 in order, skipping duplicates.
+            </p>
+            <div className="font-mono text-xs space-y-1 mb-3 p-3 rounded-lg"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border-light)', color: 'var(--text-secondary)' }}>
+              <p><span style={{ color: '#AF52DE', fontWeight: 700 }}>P1:</span>{' [1, 3, 5 '}<span style={{ color: '#FF3B30' }}>|</span>{' 7, 9, 6, 2, 4, 8, 10]  cp=3'}</p>
+              <p><span style={{ color: '#30D158', fontWeight: 700 }}>P2:</span>{' [9, 5, 3 '}<span style={{ color: '#FF3B30' }}>|</span>{' 6, 7, 1, 8, 2, 4, 10]'}</p>
+              <p style={{ color: 'var(--text-muted)' }}>{'────────────────────────────────────'}</p>
+              <p>{'Child prefix from P1: [1, 3, 5]'}</p>
+              <p>{'Fill from P2 (skip 1,3,5): 9→6→7→8→2→4→10'}</p>
+              <p><span style={{ color: 'var(--accent)', fontWeight: 700 }}>Child:</span>{' [1, 3, 5, 9, 6, 7, 8, 2, 4, 10]'}</p>
+            </div>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Mutation: swap two random positions. Elitism: top 2 preserved each generation.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Action History (full width bottom) */}
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 mt-4">
         <ActionHistory actions={actions} />
       </div>

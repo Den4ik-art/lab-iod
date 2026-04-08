@@ -5,7 +5,7 @@ import { HEURISTICS } from '../data/heuristics';
 import { saveHeuristicRanking } from '../services/storage';
 import { sha256 } from '../services/storage';
 
-// ── Local ID input ────────────────────────────────────────────────────
+// Local ID input
 function IdentifyStep({ onNext }) {
   const [name, setName] = useState('');
   const [err, setErr] = useState('');
@@ -71,7 +71,7 @@ function IdentifyStep({ onNext }) {
   );
 }
 
-// ── Draggable heuristic list ──────────────────────────────────────────
+// Draggable heuristic list
 function DragList({ items, setItems }) {
   const dragIdx = useRef(null);
   const dragOverIdx = useRef(null);
@@ -137,7 +137,7 @@ function DragList({ items, setItems }) {
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────
+// Main page
 export default function HeuristicRankingPage() {
   const [phase, setPhase] = useState('identify'); // identify | rank | done | error
   const [voterHash, setVoterHash] = useState('');

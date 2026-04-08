@@ -10,7 +10,7 @@ import AdminPage from './pages/AdminPage';
 import Lab2Page from './pages/Lab2Page';
 import HeuristicRankingPage from './pages/HeuristicRankingPage';
 
-// ── Voter flow ────────────────────────────────────────────────────────
+// Voter flow
 const STEP_PAGES = {
   login: <LoginPage />,
   vote: <VotingPage />,
@@ -37,7 +37,7 @@ function VoterFlow() {
   );
 }
 
-// ── Shared admin shell with Lab1 / Lab2 tabs ─────────────────────────
+// Shared admin shell with Lab1 / Lab2 tabs
 function AdminShell({ activeTab, children }) {
   const navigate = useNavigate();
 
@@ -116,7 +116,7 @@ function Lab2Route() {
   );
 }
 
-// ── App router ────────────────────────────────────────────────────────
+// App router
 function AppContent() {
   const location = useLocation();
   return (

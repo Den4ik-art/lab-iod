@@ -1,10 +1,9 @@
-// ── Genetic Algorithm for Rank-Aggregation / Subset Selection ─────────
-// Implements a GA that finds the optimal subset of ≤10 LEGO series
-// by maximizing agreement with expert votes and penalising heuristic violations.
+// Генетичний алгоритм для ранжування (перестановка)
+// Знаходить оптимальну послідовність об'єктів, мінімізуючи
+// сумарну відстань до думок усіх експертів.
+// Два критерії: Адитивний (мін суми) та МінМакс (мін макс відхилення)
 
-import { HEURISTICS } from './heuristics';
-
-// ── Helpers ──────────────────────────────────────────────────────────
+// Допоміжні функції
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min)) + min;
@@ -19,39 +18,55 @@ function shuffle(arr) {
   return a;
 }
 
-// ── Fitness ──────────────────────────────────────────────────────────
-// Higher = better.
-// +totalPoints of every included series
-// -penalty for each heuristic violation (series that should have been removed
-//  by a top-ranked heuristic is still present)
+// Логіка обчислення відстані
+// Кожен експерт голосував у Лаб 1: [{seriesId, rank}], rank 1 = 1-ше місце і т.д.
+// Для перестановки-кандидата обчислюємо різницю позицій.
 
-function calcFitness(chromosome, scores, heuristicWeights, allIds) {
-  let fitness = 0;
-
-  // Sum expert points for the included series
-  chromosome.forEach(id => {
-    const s = scores[id];
-    if (s) fitness += s.total;
-  });
-
-  // Penalty: for each heuristic, check how many of its "should remove" ids
-  // are still in the chromosome. Weight the penalty by the heuristic's
-  // expert-determined priority (higher weight = harsher penalty).
-  HEURISTICS.forEach(h => {
-    const w = heuristicWeights[h.id] ?? 1;
-    const toRemove = h.filter(scores);
-    toRemove.forEach(id => {
-      if (chromosome.includes(id)) {
-        // Penalty proportional to heuristic weight
-        fitness -= w * 1.5;
-      }
-    });
-  });
-
-  return fitness;
+// Позиційна карта: seriesId -> індекс у перестановці
+function buildPositionMap(permutation) {
+  const map = {};
+  permutation.forEach((id, idx) => { map[id] = idx; });
+  return map;
 }
 
-// ── Selection: Tournament ────────────────────────────────────────────
+// Відстань від одного експерта до перестановки-кандидата
+function distanceToExpert(posMap, expertRankings, n) {
+  let dist = 0;
+  expertRankings.forEach(({ seriesId, rank }) => {
+    if (posMap[seriesId] !== undefined) {
+      dist += Math.abs(posMap[seriesId] - (rank - 1));
+    }
+
+  });
+  return dist;
+}
+
+// Фітнес-функції
+
+// Адитивний фітнес: -(сума відстаней до всіх експертів)
+function fitnessAdditive(permutation, votes, n) {
+  const posMap = buildPositionMap(permutation);
+  let totalDist = 0;
+  votes.forEach(vote => {
+    if (!Array.isArray(vote.rankings)) return;
+    totalDist += distanceToExpert(posMap, vote.rankings, n);
+  });
+  return -totalDist;
+}
+
+// МінМакс фітнес: -(макс відхилення від одного експерта)
+function fitnessMinMax(permutation, votes, n) {
+  const posMap = buildPositionMap(permutation);
+  let maxDist = 0;
+  votes.forEach(vote => {
+    if (!Array.isArray(vote.rankings)) return;
+    const d = distanceToExpert(posMap, vote.rankings, n);
+    if (d > maxDist) maxDist = d;
+  });
+  return -maxDist;
+}
+
+// Турнірна селекція
 
 function tournamentSelect(population, fitnesses, k = 3) {
   let bestIdx = randomInt(0, population.length);
@@ -62,80 +77,64 @@ function tournamentSelect(population, fitnesses, k = 3) {
   return population[bestIdx];
 }
 
-// ── Crossover: Subset crossover ─────────────────────────────────────
-// Takes two parent subsets of size targetSize and produces a child of the
-// same size which mixes genes from both parents. Guarantees uniqueness.
+// Одноточковий кросовер порядку (OX1)
+// Перша частина від батька A, решта заповнюється з батька B без дублікатів
 
-function crossover(parentA, parentB, allIds, targetSize) {
-  const pool = new Set([...parentA, ...parentB]);
-  const child = [];
+export function onePointOrderCrossover(parentA, parentB) {
+  const n = parentA.length;
+  if (n <= 1) return [...parentA];
 
-  // First: randomly take from the union of both parents
-  const poolArr = shuffle([...pool]);
-  for (const id of poolArr) {
-    if (child.length >= targetSize) break;
-    child.push(id);
-  }
+  const cp = randomInt(1, n); // crossover point: 1..n-1
+  const child = parentA.slice(0, cp);
+  const used = new Set(child);
 
-  // If still not enough (shouldn't happen since |A ∪ B| ≥ targetSize), fill from allIds
-  if (child.length < targetSize) {
-    const remaining = allIds.filter(id => !child.includes(id));
-    const shuffled = shuffle(remaining);
-    while (child.length < targetSize && shuffled.length) {
-      child.push(shuffled.pop());
+  for (const gene of parentB) {
+    if (!used.has(gene)) {
+      child.push(gene);
+      used.add(gene);
     }
   }
-
   return child;
 }
 
-// ── Mutation: Swap mutation ─────────────────────────────────────────
-// Replaces one random element in the subset with a random element NOT in the subset.
+// Мутація: обмін двох випадкових позицій
 
-function mutate(chromosome, allIds) {
-  const outside = allIds.filter(id => !chromosome.includes(id));
-  if (outside.length === 0) return [...chromosome];
-
+function mutate(chromosome) {
   const child = [...chromosome];
-  const removeIdx = randomInt(0, child.length);
-  const addIdx = randomInt(0, outside.length);
-  child[removeIdx] = outside[addIdx];
+  const i = randomInt(0, child.length);
+  let j = randomInt(0, child.length);
+  while (j === i && child.length > 1) j = randomInt(0, child.length);
+  [child[i], child[j]] = [child[j], child[i]];
   return child;
 }
 
-// ── Main GA runner ──────────────────────────────────────────────────
-// Returns { bestChromosome, bestFitness, history[] }
-// history[i] = { generation, bestFitness, avgFitness }
+// Запуск GA для одного критерію
 
-export function runGeneticAlgorithm({
-  allSeriesIds,       // string[] — all 20 IDs
-  scores,             // { [id]: { total, rank1, rank2, rank3 } }
-  heuristicWeights,   // { [hId]: number } from expert popularity
-  targetSize = 10,    // how many series in the final core
+function runSingleGA({
+  itemIds,
+  votes,
+  fitnessFn,
   populationSize = 50,
   generations = 100,
-  mutationRate = 0.1, // 0..1
+  mutationRate = 0.1,
   eliteCount = 2,
-  onGeneration,       // optional callback(genData) for live updates
+  onGeneration,
 }) {
-  const allIds = [...allSeriesIds];
+  const n = itemIds.length;
   const history = [];
 
-  // ── 1. Initialize population ─────────────────────────────────────
+  // Ініціалізація популяції
   let population = [];
   for (let i = 0; i < populationSize; i++) {
-    population.push(shuffle(allIds).slice(0, targetSize));
+    population.push(shuffle(itemIds));
   }
 
   let globalBest = null;
   let globalBestFitness = -Infinity;
 
-  // ── 2. Evolve ─────────────────────────────────────────────────────
+  // 2. Evolve
   for (let gen = 0; gen < generations; gen++) {
-    // Evaluate fitness
-    const fitnesses = population.map(chr =>
-      calcFitness(chr, scores, heuristicWeights, allIds)
-    );
+    const fitnesses = population.map(chr => fitnessFn(chr, votes, n));
 
     // Track best
     let genBest = 0;
@@ -160,10 +159,9 @@ export function runGeneticAlgorithm({
       globalBestFitness,
     };
     history.push(genData);
-
     if (onGeneration) onGeneration(genData);
 
-    // ── 3. Elitism ──────────────────────────────────────────────────
+    // 3. Elitism
     const sortedIndices = fitnesses
       .map((f, i) => ({ f, i }))
       .sort((a, b) => b.f - a.f)
@@ -174,30 +172,61 @@ export function runGeneticAlgorithm({
       newPop.push([...population[sortedIndices[e]]]);
     }
 
-    // ── 4. Breed new population ──────────────────────────────────────
+    // 4. Breed new population
     while (newPop.length < populationSize) {
       const parentA = tournamentSelect(population, fitnesses);
       const parentB = tournamentSelect(population, fitnesses);
-      let child = crossover(parentA, parentB, allIds, targetSize);
+      let child = onePointOrderCrossover(parentA, parentB);
 
       if (Math.random() < mutationRate) {
-        child = mutate(child, allIds);
+        child = mutate(child);
       }
-
       newPop.push(child);
     }
 
     population = newPop;
   }
 
-  // Sort the best chromosome by score (highest first) for display
-  const sorted = globalBest
-    ? [...globalBest].sort((a, b) => (scores[b]?.total ?? 0) - (scores[a]?.total ?? 0))
-    : [];
-
   return {
-    bestChromosome: sorted,
+    bestChromosome: globalBest ?? [],
     bestFitness: globalBestFitness,
     history,
   };
+}
+
+// Головна функція — запускає GA для обох критеріїв
+
+export function runGeneticAlgorithm({
+  itemIds,
+  votes,
+  populationSize = 50,
+  generations = 100,
+  mutationRate = 0.1,
+  eliteCount = 2,
+  onGenerationAdditive,
+  onGenerationMinMax,
+}) {
+  const additive = runSingleGA({
+    itemIds,
+    votes,
+    fitnessFn: fitnessAdditive,
+    populationSize,
+    generations,
+    mutationRate,
+    eliteCount,
+    onGeneration: onGenerationAdditive,
+  });
+
+  const minmax = runSingleGA({
+    itemIds,
+    votes,
+    fitnessFn: fitnessMinMax,
+    populationSize,
+    generations,
+    mutationRate,
+    eliteCount,
+    onGeneration: onGenerationMinMax,
+  });
+
+  return { additive, minmax };
 }

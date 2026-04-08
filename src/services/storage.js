@@ -69,7 +69,7 @@ export function aggregateResults(votes) {
   return { totalVoters: votes.length, scores };
 }
 
-// ── Lab #2: Heuristic Rankings ────────────────────────────────────────
+// Lab #2: Heuristic Rankings
 
 export async function saveHeuristicRanking(data) {
   const existing = await getDocs(
@@ -93,7 +93,7 @@ export function subscribeToHeuristicRankings(callback) {
   );
 }
 
-// ── Lab #2: Action History ────────────────────────────────────────────
+// Lab #2: Action History
 
 export async function logAction(data) {
   await addDoc(collection(db, 'actionHistory'), {

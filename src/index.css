@@ -66,7 +66,7 @@ html {
   border-radius: 4px;
 }
 
-/* ══════════ CARD ══════════ */
+/* CARD */
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border-light);
@@ -81,13 +81,13 @@ html {
   box-shadow: var(--shadow-md);
 }
 
-/* ══════════ LEGO CARD ══════════ */
+/* LEGO CARD */
 .lego-card-selected {
   border-color: var(--accent) !important;
   box-shadow: 0 0 0 2px var(--accent), var(--shadow-accent) !important;
 }
 
-/* ══════════ BADGES ══════════ */
+/* BADGES */
 .badge-rank {
   background: var(--accent);
   color: #000;
@@ -102,7 +102,7 @@ html {
   justify-content: center;
 }
 
-/* ══════════ BUTTONS ══════════ */
+/* BUTTONS */
 .btn-primary {
   background: var(--text-primary);
   color: #000;
@@ -190,7 +190,7 @@ html {
   box-shadow: none;
 }
 
-/* ══════════ INPUT ══════════ */
+/* INPUT */
 .input-field {
   width: 100%;
   background: var(--bg-secondary);
@@ -213,7 +213,7 @@ html {
   box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.12);
 }
 
-/* ══════════ GLASS ══════════ */
+/* GLASS */
 .glass-panel {
   background: rgba(15, 15, 15, 0.85);
   backdrop-filter: blur(20px);
@@ -221,7 +221,7 @@ html {
   border-bottom: 1px solid var(--border-light);
 }
 
-/* ══════════ MISC ══════════ */
+/* MISC */
 .divider {
   height: 1px;
   background: var(--border-light);
@@ -236,7 +236,7 @@ html {
   text-transform: uppercase;
 }
 
-/* ══════════ TABLE ══════════ */
+/* TABLE */
 .protocol-table {
   width: 100%;
   border-collapse: collapse;
@@ -280,7 +280,7 @@ html {
   font-weight: 700;
 }
 
-/* ══════════ PROGRESS ══════════ */
+/* PROGRESS */
 .progress-bar {
   height: 4px;
   background: var(--border-light);
@@ -303,25 +303,25 @@ html {
   background: var(--accent);
 }
 
-/* ══════════ LEGO dot pattern background ══════════ */
+/* LEGO dot pattern background */
 .dot-bg {
   background-image: radial-gradient(circle, #2a2a2a 1.5px, transparent 1.5px);
   background-size: 28px 28px;
 }
 
-/* ══════════ GLOW HEADING ══════════ */
+/* GLOW HEADING */
 .glow-text {
   text-shadow: 0 0 40px rgba(255, 215, 0, 0.35);
 }
 
-/* ══════════ COLOR STRIP ══════════ */
+/* COLOR STRIP */
 .series-color-strip {
   height: 3px;
   width: 100%;
   border-radius: 0 0 2px 2px;
 }
 
-/* ══════════ HOVER LIFT ══════════ */
+/* HOVER LIFT */
 .hover-lift {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -331,7 +331,7 @@ html {
   box-shadow: var(--shadow-lg);
 }
 
-/* ══════════ LAB2 LAYOUT ══════════ */
+/* LAB2 LAYOUT */
 .lab2-grid {
   display: grid;
   grid-template-columns: 1fr 1.6fr 1fr;
